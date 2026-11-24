@@ -19,7 +19,8 @@ The first release (MVP) should be a practical, usable knowledge base. It will fo
 | Create documentation | Employees can create and submit new cases to the knowledge base. |
 | Edit own documentation | Employees can edit cases they created. |
 | Request edits to another employee's documentation | Employees can submit proposed changes for review; the published case remains unchanged until approval. |
-| Manager review | Managers can approve or reject edit requests. Approved changes update the case; rejected changes do not. |
+| Manager review | Managers open pending requests in an in-app review queue and compare the published version the employee started from with the proposed version side by side. Approval publishes the proposal as a new version. Rejection requires written feedback. | 
+| Edit decision notifications | The requester receives an in-app notification for either outcome and can read the manager’s feedback inside a rejection notification. |
 | Search | Users can search cases by title, keywords, problem description, and error message. |
 | Filters and categories | Users can filter cases by ERP module/category and other available case metadata. |
 | SQL and code blocks | Cases can include formatted SQL queries or scripts and an explanation of the code. |
@@ -33,7 +34,7 @@ The first release (MVP) should be a practical, usable knowledge base. It will fo
 - ERP system integrations
 - Advanced notification features
 
-Basic notifications may be added later; they are not required for the first usable release.
+In-app edit decision notifications are included in the MVP. Direct messages and email alerts are outside the MVP.
 
 ## 3. User roles and permissions
 
@@ -49,7 +50,7 @@ Basic notifications may be added later; they are not required for the first usab
 ### Manager
 
 - Approve or reject employee registration requests.
-- Review, approve, or reject edit requests for other employees' cases.
+- Open **Review request** from the in-app review queue, compare both versions side by side, and approve or reject. Enter feedback before rejecting.
 - View audit logs and track knowledge-base activity.
 - Deactivate accounts.
 - Use employee capabilities where applicable.
@@ -108,6 +109,14 @@ SQL queries and scripts must be displayed as code, separate from their explanato
 6. Case fields marked required above must be provided before a case can be submitted.
 7. Important actions, including account decisions, case creation and edits, edit-request decisions, and account deactivation, must be recorded in audit logs.
 8. The interface must be usable in English and Arabic, including right-to-left presentation for Arabic.
+
+## Edit request workflow
+
+1. An employee opens a published case, edits a field such as the solution, and submits the change for review.
+2. The manager opens **Review request** from the in-app queue. The review screen shows the original published version used for the proposal in one pane and the edited version in the other.
+3. Approval publishes the edited version and retains the previous version in history. If the published case changed after submission, approval requires an updated proposal.
+4. Rejection requires a note explaining the decision. The current published version remains available.
+5. The requester receives a private in-app notification for either decision. The rejection notification displays the manager’s feedback.
 
 ## 7. MVP success criteria
 

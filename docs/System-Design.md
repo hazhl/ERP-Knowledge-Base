@@ -141,11 +141,17 @@ Render stored SQL/script content as **text**, never execute it from the knowledg
 3. The initial valid submission creates published revision 1.
 4. An original author can edit their case by creating the next published revision directly; earlier published versions remain available.
 5. Editing another author's case creates a proposed revision plus an edit request, with the current published revision recorded as its **base revision**. The proposal is invisible in normal employee search until approved.
-6. A manager can inspect a proposal and approve or reject it. The review decision, reviewer, timestamp, and optional note are retained.
-7. Approval publishes the proposed snapshot and atomically updates the case's current-revision pointer; rejection preserves the existing published version.
+6. Pending requests appear in the manager’s in-app review queue. **Review request** opens a split screen with the base published revision in one pane and the proposed revision in the other. The manager can approve or reject. Rejection requires nonblank feedback. The API retains the decision, reviewer, timestamp, and feedback.
+7. Approval publishes the proposed snapshot as the next version and advances the current-revision pointer. Rejection preserves the current version and stores the feedback. For either outcome, the API writes the decision, applicable publication changes, audit event, and private in-app notification in one transaction.
 8. If the current published revision has changed since a proposal was submitted, **approval must be blocked as a conflict**. The manager/requester can compare changes and submit an updated proposal against the current revision; no silent overwrite.
 9. Publishing—including an author's direct edit—must use an optimistic concurrency check and a database transaction to avoid lost updates or duplicate published revision numbers.
 10. Pending/rejected proposals and identifying reviewer/author information remain accessible only to authorized users. Employees can inspect published history without learning the identities of other authors.
+
+### 4.3 In-app review and decision notifications
+
+The manager queue lists pending edit requests for authorized managers. The review endpoint returns the base and proposed snapshots. If the base is stale, the UI flags the conflict and the API blocks approval. No decision notification is created for an unsuccessful approval attempt.
+
+The employee’s notification inbox shows approved or rejected outcomes for their own requests. Rejection notifications display the manager’s feedback directly and link to the request. The API checks recipient ownership for reading or marking a notification as read. The MVP uses the queue and inbox for delivery. Email and direct messages are outside its scope.
 
 ## 5. Logical database design
 
@@ -159,7 +165,8 @@ The schema below is a logical design. SQL types, indexes, foreign-key behavior, 
 | `Modules` | ERP module ID, English/Arabic display names as applicable, active status |
 | `Cases` | Stable case ID, original author ID, created timestamp, current published revision ID, concurrency token (`rowversion`), optional administrative state |
 | `CaseRevisions` | Revision ID, case ID, submitted-by ID, submission timestamp, snapshot of all case form fields, base revision reference when applicable, published number if published |
-| `CaseEditRequests` | Case ID, proposed revision ID, requester ID, base published revision ID, Pending/Approved/Rejected state, reviewer, review time, decision note |
+| `CaseEditRequests` | Case ID, proposed revision ID, requester ID, base published revision ID, Pending/Approved/Rejected state, reviewer, review time, decision note required on rejection |
+| `Notifications` | Recipient user, edit request, creation time, optional read time. The request supplies the outcome and rejection feedback. One notification per decided request. |
 | `CaseRevisionKeywords` | Revision ID and normalized keyword, enabling searchable/filterable keywords per revision |
 | `CaseRevisionRelatedCases` | Revision ID and related case ID, preserving links as of that revision |
 | `Attachments` | Revision ID, storage key, sanitized/display filename, MIME type, byte size, uploaded-by ID, upload date, optional checksum |
@@ -299,6 +306,8 @@ Company-managed API host
 - [ ] A case cannot be submitted without its required documentation fields.
 - [ ] The original author can publish a new revision while preserving older revisions.
 - [ ] Another employee's proposed revision does not replace published content before approval.
+- [ ] Managers can open a pending request and compare its base and proposal side by side.
+- [ ] Rejection requires feedback. Either decision creates exactly one private in-app notification for the requester, and the rejection notification shows the feedback.
 - [ ] Stale proposals cannot silently overwrite newer published revisions.
 - [ ] Only published cases appear in normal search results; keyword/error-message and module filtering work.
 - [ ] Arabic UI renders RTL while SQL/code remains LTR.

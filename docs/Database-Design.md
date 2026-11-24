@@ -39,6 +39,8 @@ erDiagram
     CaseRevisions ||--o| CaseEditRequests : "is proposed by"
     Users ||--o{ CaseEditRequests : "requests"
     Users o|--o{ CaseEditRequests : "reviews"
+    CaseEditRequests ||--o| Notifications : "produces decision alert"
+    Users ||--o{ Notifications : "receives"
 ```
 
 
@@ -151,7 +153,21 @@ A revision holds the proposed documentation. An edit request records who propose
 | `SubmittedAtUtc` | When the request was submitted. |
 | `ReviewedByUserId` | Optional FK to `Users.Id`. Identifies the reviewing manager. |
 | `ReviewedAtUtc` | Optional review timestamp. |
-| `DecisionNote` | Optional manager comment. |
+| `DecisionNote` | Manager feedback. Required and nonblank on rejection, optional on approval. |
+
+### In-app review and notifications
+
+The manager queue queries pending `CaseEditRequests`. **Review request** loads `BaseRevisionId` and `ProposedRevisionId` for the side-by-side comparison. A stale base blocks approval.
+
+| `Notifications` column | Purpose |
+|---|---|
+| `NotificationId` | PK. |
+| `RecipientUserId` | FK to `Users.Id`. Must match the edit requester. |
+| `EditRequestId` | FK to `CaseEditRequests`. Unique to prevent duplicate decision notifications. |
+| `CreatedAtUtc` | When the decision notification was created. |
+| `ReadAtUtc` | Optional timestamp set when the recipient marks it as read. |
+
+Use the stored request status and `DecisionNote` to display the outcome and rejection feedback inside the notification. Index the recipient and creation time for inbox queries. Only the recipient can retrieve or mark the notification as read. The API requires a nonblank rejection note, and a database check enforces the same invariant for rejected requests. Write the decision, notification, audit event, and any publication change in one transaction. A rejected proposal remains unpublished.
 
 ### Walkthrough · Case #12
 
@@ -160,9 +176,9 @@ A revision holds the proposed documentation. An edit request records who propose
 | Hala publishes **Voucher total shows zero** | One case row and one revision row for version 1. The case points to version 1. | Version 1 |
 | Hala updates her own solution | The case points to a newly published version 2. | Version 2. Version 1 remains in history. |
 | A colleague proposes a clearer SQL explanation | A pending request links version 2 as the base to a new revision containing the proposed documentation. | Version 2 |
-| A manager approves while version 2 is still current | The proposal becomes published version 3. The current pointer, review decision, and audit event are written in one transaction. | Version 3 |
+| A manager approves while version 2 is still current | The proposal becomes published version 3. The current pointer, review decision, notification, and audit event are written in one transaction. | Version 3 |
 
-Rejection preserves the proposed revision for authorized review and leaves the published version available. If the published version changes while a request is pending, the API blocks approval. The requester can submit an updated proposal based on the current version.
+Rejection records the feedback, notifies the requester, preserves the proposed revision for authorized review and leaves the published version available. If the published version changes while a request is pending, the API blocks approval. The requester can submit an updated proposal based on the current version.
 
 ### Database and API rules
 
@@ -200,6 +216,7 @@ Audit registrations, account decisions, deactivations, case publications, edit p
 - [ ] Publishing a case creates version 1. A direct author edit creates a new published version and preserves the earlier one.
 - [ ] Pending and rejected proposals stay out of normal search and published history.
 - [ ] Approval publishes a proposal only when its base remains current.
+- [ ] A request can be decided once. Rejection requires feedback, and the notification is private to the requester and displays that feedback.
 - [ ] Concurrent edits cannot silently overwrite a newer revision or publish duplicate version numbers.
 - [ ] Historical revisions show their own keywords, related cases, and attachments.
 - [ ] Case, history, search, and attachment responses preserve author anonymity for employees.
