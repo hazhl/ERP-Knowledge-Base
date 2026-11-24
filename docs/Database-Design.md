@@ -24,7 +24,7 @@ erDiagram
     Users ||--o{ RegistrationRequests : "submits"
     Users o|--o{ RegistrationRequests : "reviews"
 ```
-![diagram 1](<mermaid-diagram (1).png>)
+
 
 ### Cases, revisions, and edit requests
 
@@ -40,7 +40,7 @@ erDiagram
     Users ||--o{ CaseEditRequests : "requests"
     Users o|--o{ CaseEditRequests : "reviews"
 ```
-![diagram 2](<mermaid-diagram (2).png>)
+
 
 ### Documentation details and audit events
 
@@ -54,7 +54,7 @@ erDiagram
     Users ||--o{ Attachments : "uploads"
     Users o|--o{ AuditLogs : "performs action"
 ```
-![diagram 3](<mermaid-diagram (3).png>)
+
 
 The current-version pointer can be empty while the case and its first revision are being written in the same transaction. Every committed case in the MVP has a current published revision.
 
