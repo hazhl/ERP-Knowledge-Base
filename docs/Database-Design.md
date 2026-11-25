@@ -66,10 +66,10 @@ The current-version pointer can be empty while the case and its first revision a
 
 | Table | Columns and keys |
 |---|---|
-| `Users` | `Id` (PK), `Email`, `NormalizedEmail` (unique for work-email accounts), `FullName`, `AccountStatus`, `CreatedAtUtc`, and credential fields managed by Identity. |
+| `Users` | `Id` (PK), `NormalizedEmail` (unique for work-email accounts), `FullName`, `AccountStatus`, `CreatedAtUtc`, and credential fields managed by Identity. |
 | `AspNetRoles` | `Id` (PK), `Name`, and Identity-managed role fields. The application uses `Employee` and `Manager`. |
 | `AspNetUserRoles` | `UserId` (FK to `Users.Id`), `RoleId` (FK to `AspNetRoles.Id`). Together they form the PK. |
-| `RegistrationRequests` | `RegistrationRequestId` (PK), `RequesterUserId` (FK to `Users.Id`), `Status`, `SubmittedAtUtc`, optional `ReviewedByUserId` (FK to `Users.Id`), optional `ReviewedAtUtc`, optional `DecisionNote`. |
+| `RegistrationRequests` | `RegistrationRequestId` (PK), `RequesterUserId` (FK to `Users.Id`), `Status`, `SubmittedAtUtc`, `ReviewedByUserId` (FK to `Users.Id`), `ReviewedAtUtc`, `DecisionNote`. |
 
 | Record | States |
 |---|---|
@@ -151,8 +151,8 @@ A revision holds the proposed documentation. An edit request records who propose
 | `ProposedRevisionId` | Identifies the proposed snapshot. Unique across requests. |
 | `Status` | `Pending`, `Approved`, or `Rejected`. |
 | `SubmittedAtUtc` | When the request was submitted. |
-| `ReviewedByUserId` | Optional FK to `Users.Id`. Identifies the reviewing manager. |
-| `ReviewedAtUtc` | Optional review timestamp. |
+| `ReviewedByUserId` | FK to `Users.Id`. Identifies the reviewing manager. |
+| `ReviewedAtUtc` | review timestamp. |
 | `DecisionNote` | Manager feedback. Required and nonblank on rejection, optional on approval. |
 
 ### In-app review and notifications
@@ -169,7 +169,7 @@ The manager queue queries pending `CaseEditRequests`. **Review request** loads `
 
 Use the stored request status and `DecisionNote` to display the outcome and rejection feedback inside the notification. Index the recipient and creation time for inbox queries. Only the recipient can retrieve or mark the notification as read. The API requires a nonblank rejection note, and a database check enforces the same invariant for rejected requests. Write the decision, notification, audit event, and any publication change in one transaction. A rejected proposal remains unpublished.
 
-### Walkthrough · Case #12
+### Walkthrough 
 
 | Action | What the database records | What employees see |
 |---|---|---|
@@ -193,11 +193,11 @@ Rejection records the feedback, notifies the requester, preserves the proposed r
 
 ### Attachments
 
-`Attachments` stores `AttachmentId` (PK), `RevisionId` (FK), `StorageKey`, `DisplayFileName`, `ContentType`, `SizeBytes`, `UploadedByUserId` (FK to `Users.Id`), `UploadedAtUtc`, and an optional checksum.
+`Attachments` stores `AttachmentId` (PK), `RevisionId` (FK to CaseRevisions.RevisionId), `FileContent` VARBINARY(MAX), `DisplayFileName`, `ContentType`, `SizeBytes`, `UploadedByUserId` (FK to `Users.Id`), `UploadedAtUtc`, and an optional checksum.
 
-SQL Server stores metadata. The API stores the files in protected storage. A later revision can retain an existing file by adding its own attachment row with the same storage key. Keep the file while any retained revision references it. Back up the database and files together.
+SQL Server stores the file bytes and metadata together in each attachment row. When a new revision carries forward an existing attachment, the API copies its bytes and metadata into a new row linked to the new revision. The earlier revision keeps its own attachment row. SQL Server backups include both the file bytes and metadata.
 
-The API validates uploads, generates storage keys, and authorizes downloads against the associated revision.
+Case and search responses return attachment metadata. When an employee opens a case, the app automatically fetches authorized image attachments for inline display. The API checks access to the associated revision before serving each file.
 
 ### Author anonymity
 

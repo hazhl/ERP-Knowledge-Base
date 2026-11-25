@@ -169,7 +169,7 @@ The schema below is a logical design. SQL types, indexes, foreign-key behavior, 
 | `Notifications` | Recipient user, edit request, creation time, optional read time. The request supplies the outcome and rejection feedback. One notification per decided request. |
 | `CaseRevisionKeywords` | Revision ID and normalized keyword, enabling searchable/filterable keywords per revision |
 | `CaseRevisionRelatedCases` | Revision ID and related case ID, preserving links as of that revision |
-| `Attachments` | Revision ID, storage key, sanitized/display filename, MIME type, byte size, uploaded-by ID, upload date, optional checksum |
+| `Attachments` | Revision ID, FileContent, sanitized/display filename, MIME type, byte size, uploaded-by ID, upload date, optional checksum |
 | `AuditLogs` | Event ID, actor ID (nullable for relevant system actions), action, target type/ID, outcome, UTC timestamp, safe metadata |
 
 ### 5.1 Key relationships and constraints
@@ -210,14 +210,13 @@ Audit registration decisions, account activation/deactivation, case creation, di
 
 ### 6.3 File attachments
 
-- Upload and download files through authenticated, authorized API endpoints only.
-- Store files in an API-controlled directory or approved service outside publicly served web assets; store metadata and an opaque storage key in SQL Server.
-- Validate extension, size, content type where practical, and file signatures when appropriate; choose a conservative allowlist and limits before piloting.
-- Generate storage filenames/keys on the server; never trust uploaded filenames as filesystem paths.
-- Associate attachments with a specific revision. A new snapshot can reference permitted existing files and/or newly uploaded ones without breaking old revisions.
-- Keep unpublished proposal attachments inaccessible to general employees; make them available to authorized reviewers and the submitter.
-- Prevent public file URLs, path traversal, and unrestricted script/executable uploads. Follow company malware-scanning and retention policies where applicable.
-- Treat database records and stored files as one logical backup/restore set.
+- Upload and download attachments through authenticated API endpoints. The API checks that the user has permission to access the associated case revision.
+- Store the original file bytes in SQL Server as FileContent VARBINARY(MAX). Store the display filename, validated content type, and file size alongside the bytes. Save the file and its metadata in the same database transaction.
+- Validate the extension, file size, content type, and file signature where applicable. Set a conservative file type allowlist and upload size limit before piloting. Treat uploaded filenames as untrusted display metadata.
+- Associate each attachment with a specific case revision. A new revision can carry forward permitted attachments and include new uploads. Retain the attachments associated with earlier revisions so their history remains intact.
+- Allow access to unpublished proposal attachments only to the submitter and authorized reviewers.
+- Return attachment metadata in case responses and fetch the file bytes only when an authorized user opens or downloads an attachment. Follow company malware-scanning and retention policies where applicable.
+- Include attachment bytes and metadata in SQL Server backups. Verify that a restored database can serve attachments for both current and historical revisions.
 
 ## 7. Desktop application distribution
 
