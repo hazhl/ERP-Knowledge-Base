@@ -1,6 +1,6 @@
 # ERP Knowledge Base — Database Design
 
-**Status** · Draft for review  
+**Status** · Finalized and Proposed for MVP
 **Database** · Microsoft SQL Server  
 **Data access** · ASP.NET Core API and Entity Framework Core  
 **Related document** · [System Design](<System Design.md>)
@@ -66,10 +66,10 @@ The current-version pointer can be empty while the case and its first revision a
 
 | Table | Columns and keys |
 |---|---|
-| `Users` | `Id` (PK), `NormalizedEmail` (unique for work-email accounts), `FullName`, `AccountStatus`, `CreatedAtUtc`, and credential fields managed by Identity. |
+| `Users` | `Id` (PK), `Email` (Identity-managed work email), `NormalizedEmail` (unique for work-email accounts), `FullName`, `AccountStatus`, `CreatedAtUtc`, and credential fields managed by Identity. |
 | `AspNetRoles` | `Id` (PK), `Name`, and Identity-managed role fields. The application uses `Employee` and `Manager`. |
 | `AspNetUserRoles` | `UserId` (FK to `Users.Id`), `RoleId` (FK to `AspNetRoles.Id`). Together they form the PK. |
-| `RegistrationRequests` | `RegistrationRequestId` (PK), `RequesterUserId` (FK to `Users.Id`), `Status`, `SubmittedAtUtc`, `ReviewedByUserId` (FK to `Users.Id`), `ReviewedAtUtc`, `DecisionNote`. |
+| `RegistrationRequests` | `RegistrationRequestId` (PK), `RequesterUserId` (FK to `Users.Id`), `Status`, `SubmittedAtUtc`, nullable `ReviewedByUserId` (FK to `Users.Id`), nullable `ReviewedAtUtc`, `DecisionNote`. |
 
 | Record | States |
 |---|---|
@@ -80,6 +80,8 @@ The current-version pointer can be empty while the case and its first revision a
 2. An active manager approves or rejects the pending request. The API records the decision, reviewer, and time.
 3. Approval activates the account and assigns the Employee role. Rejection leaves the account blocked.
 4. Deactivation blocks protected access and preserves case history, audit records, and the original registration decision.
+
+Leave the reviewer and review timestamp empty while the request is pending. Require both when recording a decision. Update the request only if its status is still Pending, so only one manager can decide it.
 
 Write the registration decision, account status change, any role assignment, and the audit event in one transaction. Managers use the same account fields as employees. Provision the first manager through the controlled setup described in the system design.
 
@@ -185,7 +187,7 @@ Rejection records the feedback, notifies the requester, preserves the proposed r
 - Enforce same-case references for the current, base, and proposed revisions using composite FKs to the alternate key (`CaseId`, `RevisionId`).
 - Use a filtered unique index on (`CaseId`, `PublishedVersionNumber`) for rows with a published version number.
 - Preserve the submitted content, keywords, related links, and attachment associations as a snapshot. Publication updates the revision's publication fields.
-- Review requests only while they are pending. An approval checks the base revision and the case's `RowVersion` within the transaction. Direct author edits use the same concurrency protection.
+- Conditionally update the edit request only if its status is still Pending. If the update affects zero rows, roll back the decision transaction. Approval also checks the base revision and uses the case’s `RowVersion` to protect publication. Direct author edits use the same case concurrency protection.
 - Read current case content through `CurrentPublishedRevisionId`. Search only current published revisions. Published history includes earlier published versions.
 - Restrict deletes where user, case, and revision references preserve history. Store timestamps in UTC.
 
@@ -193,7 +195,7 @@ Rejection records the feedback, notifies the requester, preserves the proposed r
 
 ### Attachments
 
-`Attachments` stores `AttachmentId` (PK), `RevisionId` (FK to CaseRevisions.RevisionId), `FileContent` VARBINARY(MAX), `DisplayFileName`, `ContentType`, `SizeBytes`, `UploadedByUserId` (FK to `Users.Id`), `UploadedAtUtc`, and an optional checksum.
+`Attachments` stores `AttachmentId` (PK), `RevisionId` (FK to `CaseRevisions`.`RevisionId`), `FileContent` VARBINARY(MAX), `DisplayFileName`, `ContentType`, `SizeBytes`, `UploadedByUserId` (FK to `Users.Id`), `UploadedAtUtc`, and an optional checksum.
 
 SQL Server stores the file bytes and metadata together in each attachment row. When a new revision carries forward an existing attachment, the API copies its bytes and metadata into a new row linked to the new revision. The earlier revision keeps its own attachment row. SQL Server backups include both the file bytes and metadata.
 
